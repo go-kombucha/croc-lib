@@ -12,10 +12,8 @@ import (
 	"math"
 	"net"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,17 +25,16 @@ import (
 	"github.com/schollz/pake/v3"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v3"
-	"github.com/skip2/go-qrcode"
 	"golang.org/x/term"
 	"golang.org/x/time/rate"
 
-	"github.com/schollz/croc/v10/src/comm"
-	"github.com/schollz/croc/v10/src/compress"
-	"github.com/schollz/croc/v10/src/crypt"
-	"github.com/schollz/croc/v10/src/message"
-	"github.com/schollz/croc/v10/src/models"
-	"github.com/schollz/croc/v10/src/tcp"
-	"github.com/schollz/croc/v10/src/utils"
+	"github.com/go-kombucha/croc-lib/src/comm"
+	"github.com/go-kombucha/croc-lib/src/compress"
+	"github.com/go-kombucha/croc-lib/src/crypt"
+	"github.com/go-kombucha/croc-lib/src/message"
+	"github.com/go-kombucha/croc-lib/src/models"
+	"github.com/go-kombucha/croc-lib/src/tcp"
+	"github.com/go-kombucha/croc-lib/src/utils"
 )
 
 var (
@@ -656,33 +653,11 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	if err != nil {
 		return
 	}
-	flags := &strings.Builder{}
-	if c.Options.RelayAddress != models.DEFAULT_RELAY && !c.Options.OnlyLocal {
-		flags.WriteString("--relay " + c.Options.RelayAddress + " ")
-	}
-	if c.Options.RelayPassword != models.DEFAULT_PASSPHRASE {
-		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
-	}
-	fmt.Fprintf(os.Stderr, `Code is: %[1]s
-
-On the other computer run:
-(For Windows)
-    croc %[2]s%[1]s
-(For Linux/macOS)
-    CROC_SECRET=%[1]q croc %[2]s
-`, c.Options.SharedSecret, flags.String())
-	copyToClipboard(c.Options.SharedSecret)
-	if c.Options.ShowQrCode {
-		showReceiveCommandQrCode(fmt.Sprintf("%[1]s", c.Options.SharedSecret))
-	}
 	if c.Options.Ask {
 		machid, _ := machineid.ID()
 		fmt.Fprintf(os.Stderr, "\rYour machine ID is '%s'\n", machid)
 	}
-	// // c.spinner.Suffix = " waiting for recipient..."
-	// c.spinner.Start()
-	// create channel for quitting
-	// connect to the relay for messaging
+
 	errchan := make(chan error, 1)
 
 	if !c.Options.DisableLocal {
@@ -845,13 +820,6 @@ On the other computer run:
 		err = <-errchan
 	}
 	return err
-}
-
-func showReceiveCommandQrCode(command string) {
-	qrCode, err := qrcode.New(command, qrcode.Medium)
-	if err == nil {
-		fmt.Println(qrCode.ToSmallString(false))
-	}
 }
 
 // Receive will receive a file
@@ -2145,28 +2113,4 @@ func (c *Client) sendData(i int) {
 			panic(errRead)
 		}
 	}
-}
-
-func copyToClipboard(str string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("clip")
-	case "darwin":
-		cmd = exec.Command("pbcopy")
-	case "linux":
-		if os.Getenv("XDG_SESSION_TYPE") == "wayland" {
-			cmd = exec.Command("wl-copy")
-		} else {
-			cmd = exec.Command("xclip", "-selection", "clipboard")
-		}
-	default:
-		return
-	}
-	cmd.Stdin = bytes.NewReader([]byte(str))
-	if err := cmd.Run(); err != nil {
-		log.Debugf("error copying to clipboard: %v", err)
-		return
-	}
-	fmt.Fprintf(os.Stderr, "Code copied to clipboard\n")
 }
